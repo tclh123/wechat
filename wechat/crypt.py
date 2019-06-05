@@ -1,4 +1,4 @@
-#encoding=utf-8
+# encoding=utf-8
 
 import base64
 import string
@@ -10,6 +10,7 @@ from Crypto.Cipher import AES
 import xml.etree.cElementTree as ET
 import sys
 import socket
+from imp import reload
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
@@ -82,7 +83,7 @@ class XMLParse:
             xml_tree = ET.fromstring(xmltext)
             encrypt = xml_tree.find("Encrypt")
             touser_name = xml_tree.find("ToUserName")
-            if touser_name != None:
+            if touser_name is not None:
                 touser_name = touser_name.text
             return WXBizMsgCrypt_OK, encrypt.text, touser_name
         except Exception:
