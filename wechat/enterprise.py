@@ -1,4 +1,4 @@
-#encoding=utf-8
+# encoding=utf-8
 
 import requests
 import time
@@ -60,7 +60,7 @@ class WxApplication(BaseApplication):
         self.pre_process()
         rsp = func(self.req)
         self.post_process()
-        result = rsp.as_xml().encode('UTF-8') 
+        result = rsp.as_xml().encode('UTF-8')
 
         if not result:
             return ''
@@ -79,11 +79,7 @@ def format_list(data):
 
 
 def simplify_send_parmas(params):
-    keys = params.keys()
-    for key in keys:
-        if not params[key]:
-            del params[key]
-    return params
+    return {k: v for k, v in params.items() if v}
 
 
 class WxApi(WxBaseApi):
