@@ -8,11 +8,7 @@ import time
 import struct
 from Crypto.Cipher import AES
 import xml.etree.cElementTree as ET
-import sys
 import socket
-from imp import reload
-reload(sys)
-sys.setdefaultencoding('utf-8')
 
 WXBizMsgCrypt_OK = 0
 WXBizMsgCrypt_ValidateSignature_Error = -40001
