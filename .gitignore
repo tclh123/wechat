@@ -5,6 +5,7 @@ dist
 *.pyc
 *.db
 .idea
+/venv*
 
 ### Django ###
 *.log

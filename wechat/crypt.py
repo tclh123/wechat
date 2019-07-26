@@ -1,14 +1,20 @@
 # encoding=utf-8
 
+import os
 import base64
-import string
-import random
+# import string
+# import random
 import hashlib
 import time
 import struct
-from Crypto.Cipher import AES
 import xml.etree.cElementTree as ET
 import socket
+
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.primitives.ciphers import (
+    Cipher, algorithms, modes
+)
 
 WXBizMsgCrypt_OK = 0
 WXBizMsgCrypt_ValidateSignature_Error = -40001
@@ -22,13 +28,6 @@ WXBizMsgCrypt_IllegalBuffer = -40008
 WXBizMsgCrypt_EncodeBase64_Error = -40009
 WXBizMsgCrypt_DecodeBase64_Error = -40010
 WXBizMsgCrypt_GenReturnXml_Error = -40011
-
-
-"""
-关于Crypto.Cipher模块，ImportError: No module named 'Crypto'解决方案
-请到官方网站 https://www.dlitz.net/software/pycrypto/ 下载pycrypto。
-下载后，按照README中的“Installation”小节的提示进行pycrypto安装。
-"""
 
 
 class FormatException(Exception):
@@ -103,33 +102,33 @@ class XMLParse:
         return resp_xml
 
 
-class PKCS7Encoder():
-    """提供基于PKCS7算法的加解密接口"""
-    block_size = 32
-
-    def encode(self, text):
-        """ 对需要加密的明文进行填充补位
-        @param text: 需要进行填充补位操作的明文
-        @return: 补齐明文字符串
-        """
-        text_length = len(text)
-        # 计算需要填充的位数
-        amount_to_pad = self.block_size - (text_length % self.block_size)
-        if amount_to_pad == 0:
-            amount_to_pad = self.block_size
-        # 获得补位所用的字符
-        pad = chr(amount_to_pad)
-        return text + pad * amount_to_pad
-
-    def decode(self, decrypted):
-        """删除解密后明文的补位字符
-        @param decrypted: 解密后的明文
-        @return: 删除补位字符后的明文
-        """
-        pad = ord(decrypted[-1])
-        if pad < 1 or pad > 32:
-            pad = 0
-        return decrypted[:-pad]
+# class PKCS7Encoder():
+#     """提供基于PKCS7算法的加解密接口"""
+#     block_size = 32
+# 
+#     def encode(self, text):
+#         """ 对需要加密的明文进行填充补位
+#         @param text: 需要进行填充补位操作的明文
+#         @return: 补齐明文字符串
+#         """
+#         text_length = len(text)
+#         # 计算需要填充的位数
+#         amount_to_pad = self.block_size - (text_length % self.block_size)
+#         if amount_to_pad == 0:
+#             amount_to_pad = self.block_size
+#         # 获得补位所用的字符
+#         pad = chr(amount_to_pad)
+#         return text + pad * amount_to_pad
+# 
+#     def decode(self, decrypted):
+#         """删除解密后明文的补位字符
+#         @param decrypted: 解密后的明文
+#         @return: 删除补位字符后的明文
+#         """
+#         pad = ord(decrypted[-1])
+#         if pad < 1 or pad > 32:
+#             pad = 0
+#         return decrypted[:-pad]
 
 
 class Prpcrypt(object):
@@ -138,8 +137,8 @@ class Prpcrypt(object):
     def __init__(self, key):
         #self.key = base64.b64decode(key+"=")
         self.key = key
-        # 设置加解密模式为AES的CBC模式
-        self.mode = AES.MODE_CBC
+        # # 设置加解密模式为AES的CBC模式
+        # self.mode = AES.MODE_CBC
 
     def encrypt(self, text, appid):
         """对明文进行加密
@@ -149,13 +148,15 @@ class Prpcrypt(object):
         # 16位随机字符串添加到明文开头
         text = self.get_random_str() + struct.pack(
             "I", socket.htonl(len(text))) + text + appid
-        # 使用自定义的填充方式对明文进行补位填充
-        pkcs7 = PKCS7Encoder()
-        text = pkcs7.encode(text)
         # 加密
-        cryptor = AES.new(self.key, self.mode, self.key[:16])
+        encryptor = Cipher(
+            algorithms.AES(self.key),
+            modes.CBC(self.key[:16]),
+            backend=default_backend()
+        ).encryptor()
+        padder = padding.PKCS7(algorithms.AES.block_size).padder()
         try:
-            ciphertext = cryptor.encrypt(text)
+            ciphertext = encryptor.update(padder.update(text) + padder.finalize()) + encryptor.finalize()
             # 使用BASE64对加密后的字符串进行编码
             return WXBizMsgCrypt_OK, base64.b64encode(ciphertext)
         except Exception:
@@ -166,19 +167,20 @@ class Prpcrypt(object):
         @param text: 密文
         @return: 删除填充补位后的明文
         """
+        decryptor = Cipher(
+            algorithms.AES(self.key),
+            modes.CBC(self.key[:16]),
+            backend=default_backend()
+        ).decryptor()
+        unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
         try:
-            cryptor = AES.new(self.key, self.mode, self.key[:16])
             # 使用BASE64对密文进行解码，然后AES-CBC解密
-            plain_text = cryptor.decrypt(base64.b64decode(text))
+            plain_text = unpadder.update(decryptor.update(base64.b64decode(text)) + decryptor.finalize()) + unpadder.finalize()
         except Exception:
             return WXBizMsgCrypt_DecryptAES_Error, None
         try:
-            pad = ord(plain_text[-1])
-            # 去掉补位字符串
-            #pkcs7 = PKCS7Encoder()
-            #plain_text = pkcs7.encode(plain_text)
             # 去除16位随机字符串
-            content = plain_text[16:-pad]
+            content = plain_text[16:]
             xml_len = socket.ntohl(struct.unpack("I", content[:4])[0])
             xml_content = content[4:xml_len+4]
             from_appid = content[xml_len+4:]
@@ -192,9 +194,10 @@ class Prpcrypt(object):
         """ 随机生成16位字符串
         @return: 16位字符串
         """
-        rule = string.letters + string.digits
-        str = random.sample(rule, 16)
-        return "".join(str)
+        # rule = string.ascii_letters + string.digits
+        # s = random.sample(rule, 16)
+        # return "".join(s)
+        return os.urandom(16)
 
 
 class WXBizMsgCrypt(object):

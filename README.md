@@ -1,5 +1,7 @@
 # 微信公众号Python-SDK
 
+![](https://img.shields.io/pypi/pyversions/wechat3)
+
 作者: [@jeff_kit](http://twitter.com/jeff_kit)
 
 本SDK支持微信公众号以及企业号的上行消息及OAuth接口。本文档及SDK假设使用者已经具备微信公众号开发的基础知识，及有能力通过微信公众号、企业号的文档来查找相关的接口详情。
@@ -9,11 +11,11 @@
 
 ### pip
 	
-	pip install wechat
+	pip install wechat3
 
 ### 源码安装
 
-	git clone git@github.com:jeffkit/wechat.git
+	git clone https://github.com/tclh123/wechat.git
 	cd wechat
 	python setup.py install
 	
